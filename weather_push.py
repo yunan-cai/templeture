@@ -20,7 +20,6 @@ def get_weather_xian() -> dict:
         data = resp.json()
         if data.get('status') == 200:
             forecast = data['data']['forecast'][0]
-            # API返回格式: {"high": "高温 24℃", "low": "低温 11℃", "fx": "东风", "fl": "<3级", "type": "阴"}
             high = forecast.get('high', '').replace('高温 ', '').replace('℃', '').replace(' ', '')
             low = forecast.get('low', '').replace('低温 ', '').replace('℃', '').replace(' ', '')
             fx = forecast.get('fx', '').strip()
@@ -34,7 +33,6 @@ def get_weather_xian() -> dict:
             }
     except Exception as e2:
         print(f"天气接口失败: {e2}")
-        # 尝试另一个数据源
         try:
             url = "https://www.weather.com.cn/data/cityinfo/101110101.html"
             resp = requests.get(url, timeout=10)
@@ -127,7 +125,70 @@ def get_aqi() -> dict:
         'success': False
     }
 
-def build_weather_message(weather: dict, forecast: dict, aqi: dict) -> str:
+def get_pollen() -> dict:
+    """获取花粉浓度信息（基于季节和地区的估算）"""
+    try:
+        now = datetime.now()
+        month = now.month
+        
+        # 西北地区（西安）季节性花粉等级参考
+        pollen_level_map = {
+            3: "高（4级）",
+            4: "很高（5级）",
+            5: "中高（3-4级）",
+            6: "中（3级）",
+            7: "低（2级）",
+            8: "中（3级）",
+            9: "高（4级）",
+            10: "中高（3-4级）",
+            11: "低（2级）",
+            12: "低（1-2级）",
+            1: "低（1-2级）",
+            2: "低（1-2级）",
+        }
+        
+        pollen_type_map = {
+            3: "柏树、杨树、柳树等木本植物",
+            4: "柳树、梧桐、杨柳科等树木花粉",
+            5: "树木花粉为主",
+            6: "草本花粉开始增多",
+            7: "花粉浓度较低",
+            8: "杂草花粉开始出现",
+            9: "豚草、蒿草等杂草花粉",
+            10: "杂草花粉 + 部分树木花粉",
+            11: "花粉浓度下降",
+            12: "花粉较少",
+            1: "花粉较少",
+            2: "花粉逐渐增加",
+        }
+        
+        level = pollen_level_map.get(month, "低（2级）")
+        pollen_type = pollen_type_map.get(month, "多种植物花粉")
+        
+        # 风险提示
+        if "高" in level or "很高" in level:
+            risk_tip = "过敏人群需重点防护，外出佩戴口罩和护目镜"
+        elif "中" in level:
+            risk_tip = "敏感人群外出请注意防护"
+        else:
+            risk_tip = "花粉浓度较低，一般人群正常活动"
+        
+        return {
+            'level': f"🌸🌸🌸🌸 {level}" if "高" in level or "很高" in level else f"🌸 {level}",
+            'type': pollen_type,
+            'risk_tip': risk_tip,
+            'success': True
+        }
+    except Exception as e:
+        print(f"花粉数据获取失败: {e}")
+        return {
+            'level': '🌸🌸🌸🌸 高（4级）',
+            'type': '春季树木花粉',
+            'risk_tip': '过敏人群需重点防护',
+            'success': False
+        }
+
+def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict) -> str:
     """构建推送消息内容"""
     now = datetime.now()
     date_str = f"{now.year}年{now.month}月{now.day}日"
@@ -153,8 +214,10 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict) -> str:
         tips.append("• ☀️ 天气不错，适合户外活动")
     if aqi['level'] in ['轻度污染', '中度污染', '重度污染', '严重污染']:
         tips.append(f"• 😷 空气质量{aqi['level']}，建议减少户外活动或佩戴口罩")
-    else:
-        tips.append("• 🌸 春季花粉浓度较高，过敏人群外出请佩戴口罩")
+    if '高' in pollen['level'] or '很高' in pollen['level']:
+        tips.append(f"• 🌸 花粉浓度{pollen['level']}，{pollen['risk_tip']}")
+    elif '中' in pollen['level']:
+        tips.append(f"• 🌸 花粉浓度{pollen['level']}，{pollen['risk_tip']}")
     
     tips_text = "\n".join(tips)
     
@@ -178,6 +241,16 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict) -> str:
 |------|------|
 | AQI 指数 | **{aqi['aqi']}**（{aqi['level']}） |
 | PM2.5 | {aqi['pm25']} μg/m³ |
+
+---
+
+### 🌸 花粉浓度
+
+| 项目 | 详情 |
+|------|------|
+| 🌼 花粉等级 | **{pollen['level']}** |
+| 🌿 主要花粉 | {pollen['type']} |
+| 📊 风险提示 | {pollen['risk_tip']} |
 
 ---
 
@@ -223,7 +296,8 @@ def main():
     weather = get_weather_xian()
     forecast = get_weather_forecast()
     aqi = get_aqi()
-    
+    pollen = get_pollen()
+
     if not weather['success']:
         print("天气数据获取失败，退出")
         sys.exit(1)
@@ -231,7 +305,7 @@ def main():
     print(f"今日天气: {weather['condition']}, {weather['temp_low']}~{weather['temp_high']}℃")
     
     title = f"西安天气早报 {datetime.now().strftime('%m/%d')}"
-    content = build_weather_message(weather, forecast, aqi)
+    content = build_weather_message(weather, forecast, aqi, pollen)
     
     print("正在推送...")
     success = push_to_wechat(title, content)
