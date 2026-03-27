@@ -20,17 +20,21 @@ def get_weather_xian() -> dict:
         data = resp.json()
         if data.get('status') == 200:
             forecast = data['data']['forecast'][0]
-            high = forecast['high'].replace('高温 ', '').replace('℃', '')
-            low = forecast['low'].replace('低温 ', '').replace('℃', '')
+            # API返回格式: {"high": "高温 24℃", "low": "低温 11℃", "fx": "东风", "fl": "<3级", "type": "阴"}
+            high = forecast.get('high', '').replace('高温 ', '').replace('℃', '').replace(' ', '')
+            low = forecast.get('low', '').replace('低温 ', '').replace('℃', '').replace(' ', '')
+            fx = forecast.get('fx', '').strip()
+            fl = forecast.get('fl', '').strip()
             return {
-                'condition': forecast['type'],
+                'condition': forecast.get('type', '未知'),
                 'temp_high': high,
                 'temp_low': low,
-                'wind': f"{forecast['fengli']} {forecast['fengxiang']}",
+                'wind': f"{fx} {fl}" if fx and fl else '微风',
                 'success': True
             }
     except Exception as e2:
         print(f"天气接口失败: {e2}")
+        # 尝试另一个数据源
         try:
             url = "https://www.weather.com.cn/data/cityinfo/101110101.html"
             resp = requests.get(url, timeout=10)
@@ -67,9 +71,13 @@ def get_weather_forecast() -> dict:
             tomorrow_str = ""
             day_after_str = ""
             if tomorrow:
-                tomorrow_str = f"{tomorrow['type']}, {tomorrow['low']} ~ {tomorrow['high']}"
+                t_high = tomorrow.get('high', '').replace('高温 ', '').replace('℃', '').replace(' ', '')
+                t_low = tomorrow.get('low', '').replace('低温 ', '').replace('℃', '').replace(' ', '')
+                tomorrow_str = f"{tomorrow.get('type', '--')}, {t_low}℃ ~ {t_high}℃"
             if day_after:
-                day_after_str = f"{day_after['type']}, {day_after['low']} ~ {day_after['high']}"
+                d_high = day_after.get('high', '').replace('高温 ', '').replace('℃', '').replace(' ', '')
+                d_low = day_after.get('low', '').replace('低温 ', '').replace('℃', '').replace(' ', '')
+                day_after_str = f"{day_after.get('type', '--')}, {d_low}℃ ~ {d_high}℃"
             return {
                 'tomorrow': tomorrow_str,
                 'day_after': day_after_str,
