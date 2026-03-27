@@ -1,6 +1,0 @@
-cd C:\Users\Administrator\WorkBuddy\Claw
-git init
-git add weather_push.py .github/workflows/
-git commit -m "天气推送"
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-git push -u origin main
