@@ -19,47 +19,46 @@ WEATHER_API_URL = "https://api.qweather.com/v7/weather/now"
 def get_weather_xian() -> dict:
     """从中国天气网获取西安今日天气"""
     try:
-        # 使用中国天气网的公开数据接口
-        url = "https://www.weather.com.cn/data/cityinfo/101110101.html"
+        # 备用：使用天气后报的实时接口（更稳定）
+        url = "http://t.weather.sojson.com/api/weather/city/101110101"
         resp = requests.get(url, timeout=10)
-        resp.encoding = 'utf-8'
         data = resp.json()
-
-        weatherinfo = data.get('weatherinfo', {})
-        return {
-            'condition': weatherinfo.get('weather', '未知'),
-            'temp_high': weatherinfo.get('temp1', '--').replace('℃', ''),
-            'temp_low': weatherinfo.get('temp2', '--').replace('℃', ''),
-            'wind': '微风 <3级',  # 中国天气网简单接口没有风力，给个默认值
-            'success': True
-        }
-    except Exception as e:
-        print(f"中国天气网接口调用失败: {e}")
-        # 备用：使用天气后报的实时接口
+        if data.get('status') == 200:
+            forecast = data['data']['forecast'][0]
+            high = forecast['high'].replace('高温 ', '').replace('℃', '')
+            low = forecast['low'].replace('低温 ', '').replace('℃', '')
+            return {
+                'condition': forecast['type'],
+                'temp_high': high,
+                'temp_low': low,
+                'wind': f"{forecast['fengli']} {forecast['fengxiang']}",
+                'success': True
+            }
+    except Exception as e2:
+        print(f"天气接口失败: {e2}")
+        # 尝试另一个数据源
         try:
-            url = "http://t.weather.sojson.com/api/weather/city/101110101"
+            url = "https://www.weather.com.cn/data/cityinfo/101110101.html"
             resp = requests.get(url, timeout=10)
+            resp.encoding = 'utf-8'
             data = resp.json()
-            if data.get('status') == 200:
-                forecast = data['data']['forecast'][0]
-                high = forecast['high'].replace('高温 ', '').replace('℃', '')
-                low = forecast['low'].replace('低温 ', '').replace('℃', '')
-                return {
-                    'condition': forecast['type'],
-                    'temp_high': high,
-                    'temp_low': low,
-                    'wind': f"{forecast['fengli']} {forecast['fengxiang']}",
-                    'success': True
-                }
-        except Exception as e2:
-            print(f"备用接口也失败: {e2}")
-        return {
-            'condition': '数据获取失败',
-            'temp_high': '--',
-            'temp_low': '--',
-            'wind': '--',
-            'success': False
-        }
+            weatherinfo = data.get('weatherinfo', {})
+            return {
+                'condition': weatherinfo.get('weather', '未知'),
+                'temp_high': weatherinfo.get('temp1', '--').replace('℃', ''),
+                'temp_low': weatherinfo.get('temp2', '--').replace('℃', ''),
+                'wind': '微风 <3级',
+                'success': True
+            }
+        except Exception as e:
+            print(f"备用接口也失败: {e}")
+    return {
+        'condition': '数据获取失败',
+        'temp_high': '--',
+        'temp_low': '--',
+        'wind': '--',
+        'success': False
+    }
 
 
 def get_weather_forecast() -> dict:
@@ -162,7 +161,10 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict) -> str:
 
     # 生成温馨提示
     tips = []
-    temp_diff = int(weather['temp_high']) - int(weather['temp_low']) if weather['temp_high'].isdigit() and weather['temp_low'].isdigit() else 0
+    try:
+        temp_diff = int(weather['temp_high']) - int(weather['temp_low']) if weather['temp_high'].isdigit() and weather['temp_low'].isdigit() else 0
+    except (ValueError, TypeError):
+        temp_diff = 0
 
     if temp_diff > 10:
         tips.append(f"• 🌡 早晚温差大（{temp_diff}℃），注意增减衣物")
