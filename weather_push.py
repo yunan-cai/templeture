@@ -41,6 +41,8 @@ def get_weather_xian() -> dict:
                 'temp_high': high,
                 'temp_low': low,
                 'wind': f"{fx} {fl}" if fx and fl else '微风',
+                'sunrise': forecast.get('sunrise', '--'),
+                'sunset': forecast.get('sunset', '--'),
                 'success': True
             }
     except Exception as e2:
@@ -57,6 +59,8 @@ def get_weather_xian() -> dict:
                 'temp_high': weatherinfo.get('temp1', '--').replace('℃', ''),
                 'temp_low': weatherinfo.get('temp2', '--').replace('℃', ''),
                 'wind': '微风 <3级',
+                'sunrise': '--',
+                'sunset': '--',
                 'success': True
             }
         except Exception as e:
@@ -66,6 +70,8 @@ def get_weather_xian() -> dict:
         'temp_high': '--',
         'temp_low': '--',
         'wind': '--',
+        'sunrise': '--',
+        'sunset': '--',
         'success': False
     }
 
@@ -409,6 +415,7 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict
 
 **{condition}**　{weather['temp_low']}℃ ~ {weather['temp_high']}℃
 💨 {weather['wind']}
+🌅 日出 {weather.get('sunrise', '--')}　🌇 日落 {weather.get('sunset', '--')}
 
 ## 空气质量
 
