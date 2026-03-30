@@ -7,10 +7,16 @@ import requests
 from datetime import datetime, timedelta
 import json
 import sys
+import base64
+import os
+import tempfile
 
 # ===== 配置项 =====
 SEND_KEY = "SCT328674TGNt9ymtHWVwK2D0pRaWZYIbQ"
 PUSH_URL = f"https://sctapi.ftqq.com/{SEND_KEY}.send"
+
+# 图片生成开关
+GENERATE_IMAGE = False  # 设为 False 则只发文字（先测试基础功能）
 
 # 天气数据源（和风天气API，无需 key）
 WEATHER_API_URL = "https://api.qweather.com/v7/weather/now"
@@ -414,8 +420,70 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict
     return message
 
 
+def generate_weather_image_from_data(weather: dict, forecast: dict, aqi: dict, pollen: dict) -> str:
+    """
+    使用 og-image.vercel.app 生成天气卡片图片
+    返回图片 URL 或 None（如果生成失败）
+    """
+    try:
+        from datetime import datetime
+        from urllib.parse import quote
+        
+        now = datetime.now()
+        date_str = f"{now.year}年{now.month}月{now.day}日"
+        
+        # 构建简洁的天气摘要
+        weather_summary = f"天气: {weather['condition']}"
+        temp_summary = f"气温: {weather['temp_low']}℃ ~ {weather['temp_high']}℃"
+        
+        # 构建 og-image URL
+        base_url = "https://og-image.vercel.app"
+        
+        # 标题和副标题
+        title = "西安天气早报"
+        subtitle = f"{date_str} | {weather_summary} | {temp_summary}"
+        
+        # 如果需要，可以添加更多信息
+        if aqi.get('success', False):
+            subtitle += f" | AQI: {aqi.get('aqi', '--')}"
+        
+        # URL 编码
+        encoded_title = quote(title)
+        encoded_subtitle = quote(subtitle)
+        
+        # 构建图片 URL
+        image_url = f"{base_url}/{encoded_title}/{encoded_subtitle}.png?theme=light&fontSize=80px"
+        
+        print(f"生成天气卡片图片: {image_url[:100]}...")
+        return image_url
+        
+    except Exception as e:
+        print(f"图片生成失败: {e}，改用文字推送")
+        return None
+
+
+def generate_weather_image(message: str) -> str:
+    """
+    通过在线 API 将 Markdown 消息转换成图片
+    使用 og-image.vercel.app 免费 API
+    返回图片 URL 或 None（如果生成失败）
+    
+    注意: 为了兼容性，保留这个函数，但实际使用新的 generate_weather_image_from_data
+    """
+    try:
+        # 使用 og-image 服务生成简洁的天气卡片
+        # 由于 Markdown 转图片比较复杂，这里返回 None
+        # 实际图片生成使用 generate_weather_image_from_data 函数
+        print("使用新的 generate_weather_image_from_data 函数生成图片")
+        return None
+        
+    except Exception as e:
+        print(f"图片生成失败: {e}，改用文字推送")
+        return None
+
+
 def push_to_wechat(title: str, content: str) -> bool:
-    """通过 Server酱 推送到微信"""
+    """通过 Server酱 推送到微信（原始文字版）"""
     try:
         session = requests.Session()
         session.trust_env = False  # 绕过系统代理
@@ -431,6 +499,33 @@ def push_to_wechat(title: str, content: str) -> bool:
     except Exception as e:
         print(f"推送异常: {e}")
         return False
+
+
+def push_to_wechat_with_image(title: str, content: str, image_url: str = None) -> bool:
+    """
+    通过 Server酱 推送到微信（支持在线图片）
+    
+    参数:
+    - title: 消息标题
+    - content: 消息内容（支持 Markdown，可以包含 ![](url) 格式的图片引用）
+    - image_url: 图片 URL（如果提供，会被插入到消息中）
+    """
+    try:
+        session = requests.Session()
+        session.trust_env = False
+        
+        # 如果提供了图片 URL，在内容开头插入
+        if image_url:
+            # 检查内容中是否已经包含了图片
+            if "![" not in content:
+                content = f"![天气卡片]({image_url})\n\n{content}"
+        
+        # 直接使用 Server酱 推送
+        return push_to_wechat(title, content)
+        
+    except Exception as e:
+        print(f"推送异常: {e}")
+        return push_to_wechat(title, content)
 
 
 def main():
@@ -453,9 +548,20 @@ def main():
     title = f"西安天气早报 {datetime.now().strftime('%m/%d')}"
     content = build_weather_message(weather, forecast, aqi, pollen)
 
+    # 图片生成
+    image_url = None
+    if GENERATE_IMAGE:
+        print("正在生成天气卡片图片...")
+        image_url = generate_weather_image_from_data(weather, forecast, aqi, pollen)
+    
     # 推送到微信
     print("正在推送...")
-    success = push_to_wechat(title, content)
+    if image_url:
+        # 在消息开头插入图片
+        content_with_image = f"![天气卡片]({image_url})\n\n{content}"
+        success = push_to_wechat_with_image(title, content_with_image)
+    else:
+        success = push_to_wechat_with_image(title, content)
 
     if success:
         print("✅ 推送成功！")
