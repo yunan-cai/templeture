@@ -16,7 +16,7 @@ SEND_KEY = "SCT328674TGNt9ymtHWVwK2D0pRaWZYIbQ"
 PUSH_URL = f"https://sctapi.ftqq.com/{SEND_KEY}.send"
 
 # 图片生成开关
-GENERATE_IMAGE = True  # 开启图片生成（使用 og-image.vercel.app 生成天气卡片）
+GENERATE_IMAGE = False  # 微信不支持 Markdown 图片渲染，关闭此功能
 
 # 天气数据源（和风天气API，无需 key）
 WEATHER_API_URL = "https://api.qweather.com/v7/weather/now"
@@ -364,58 +364,73 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict
 
     tips_text = "\n".join(tips)
 
-    message = f"""## 🌤 西安天气早报 · {date_str}（{weekday}）
+    # 天气条件对应的 emoji
+    condition = weather['condition']
+    if '晴' in condition:
+        weather_emoji = '☀️'
+    elif '多云' in condition or '阴' in condition:
+        weather_emoji = '☁️'
+    elif '雨' in condition:
+        weather_emoji = '🌧️'
+    elif '雪' in condition:
+        weather_emoji = '❄️'
+    elif '雾' in condition or '霾' in condition:
+        weather_emoji = '🌫️'
+    else:
+        weather_emoji = '🌤️'
+
+    # AQI 对应 emoji
+    aqi_level = aqi.get('level', '--')
+    if '优' in aqi_level:
+        aqi_emoji = '🟢'
+    elif '良' in aqi_level:
+        aqi_emoji = '🟡'
+    elif '轻度' in aqi_level:
+        aqi_emoji = '🟠'
+    elif '中度' in aqi_level or '重度' in aqi_level or '严重' in aqi_level:
+        aqi_emoji = '🔴'
+    else:
+        aqi_emoji = '⚪'
+
+    # 花粉对应 emoji
+    pollen_level = pollen.get('level', '--')
+    if '很低' in pollen_level or '低' in pollen_level:
+        pollen_emoji = '🟢'
+    elif '中' in pollen_level:
+        pollen_emoji = '🟡'
+    elif '高' in pollen_level or '很高' in pollen_level:
+        pollen_emoji = '🔴'
+    else:
+        pollen_emoji = '⚪'
+
+    message = f"""# {weather_emoji} 西安天气 · {date_str}（{weekday}）
+
+## 今日天气
+
+**{condition}**　{weather['temp_low']}℃ ~ {weather['temp_high']}℃
+💨 {weather['wind']}
+
+## 空气质量
+
+{aqi_emoji} AQI **{aqi['aqi']}**（{aqi_level}）　PM2.5：{aqi['pm25']} μg/m³
+
+## 花粉
+
+{pollen_emoji} **{pollen_level}**　{pollen.get('grains_ref', '')}
+🌿 主要花粉：{pollen['type']}
+💊 {pollen['risk_tip']}
+🕐 {pollen.get('outing_tip', '敏感人群注意防护')}
+
+## 未来两天
+
+📅 明天（{tomorrow_date}）：{forecast['tomorrow']}
+📅 后天（{day_after_date}）：{forecast['day_after']}
 
 ---
-
-### 📍 今日天气
-
-| 项目 | 详情 |
-|------|------|
-| 🌥 天气状况 | {weather['condition']} |
-| 🌡 气温 | {weather['temp_low']}℃ ~ {weather['temp_high']}℃ |
-| 💨 风力风向 | {weather['wind']} |
-
----
-
-### 🌫 空气质量
-
-| 指标 | 数值 |
-|------|------|
-| AQI 指数 | **{aqi['aqi']}**（{aqi['level']}） |
-| PM2.5 | {aqi['pm25']} μg/m³ |
-
----
-
-### 🌸 花粉浓度
-
-| 项目 | 详情 |
-|------|------|
-| 🌼 花粉等级 | **{pollen['level']}** |
-| 🔬 参考浓度 | {pollen.get('grains_ref', '--')} |
-| 🌿 主要花粉 | {pollen['type']} |
-| ⚠️ 风险提示 | {pollen['risk_tip']} |
-| 🕐 出行建议 | {pollen.get('outing_tip', '敏感人群注意防护')} |
-| 📡 数据来源 | {pollen.get('source', '参考数据')} |
-
----
-
-### 📅 未来天气
-
-| 日期 | 天气 | 气温 |
-|------|------|------|
-| 明天（{tomorrow_date}） | {forecast['tomorrow']} |
-| 后天（{day_after_date}） | {forecast['day_after']} |
-
----
-
-### 💡 温馨提示
-
 {tips_text}
 
 ---
-
-*数据来源：SoJSON天气API（天气/预报）& WAQI（AQI）& 中国天气网（花粉，国家卫生健康委/气象局联合发布） | 推送时间：{now.strftime('%H:%M')}*
+*{now.strftime('%H:%M')} · SoJSON / WAQI / 中国天气网*
 """
     return message
 
