@@ -2,13 +2,18 @@ name: 西安天气每日推送
 
 on:
   schedule:
-    # 每天 07:00（北京时间）触发
-    - cron: '0 23 * * *'
+    # 目标推送时间：北京时间 07:00
+    # GitHub Actions cron 调度存在约 0~60 分钟的随机延迟
+    # 设置为 22:00 UTC（北京时间 6:00），确保延迟后仍能在 7:00~7:30 到达
+    - cron: '0 22 * * *'
+
+  # 支持手动触发（用于测试）
   workflow_dispatch:
 
 jobs:
   weather-push:
     runs-on: ubuntu-latest
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
