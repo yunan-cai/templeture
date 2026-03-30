@@ -16,7 +16,7 @@ SEND_KEY = "SCT328674TGNt9ymtHWVwK2D0pRaWZYIbQ"
 PUSH_URL = f"https://sctapi.ftqq.com/{SEND_KEY}.send"
 
 # 图片生成开关
-GENERATE_IMAGE = False  # 设为 False 则只发文字（先测试基础功能）
+GENERATE_IMAGE = True  # 开启图片生成（使用 og-image.vercel.app 生成天气卡片）
 
 # 天气数据源（和风天气API，无需 key）
 WEATHER_API_URL = "https://api.qweather.com/v7/weather/now"
@@ -564,10 +564,10 @@ def main():
         success = push_to_wechat_with_image(title, content)
 
     if success:
-        print("✅ 推送成功！")
+        print("推送成功！")
         sys.exit(0)
     else:
-        print("❌ 推送失败")
+        print("推送失败")
         sys.exit(1)
 
 
