@@ -238,8 +238,18 @@ def _build_pollen_result(level_num: int, level_text: str, pollen_type_raw, sourc
     }
     stars_map = {1: "🌸", 2: "🌸🌸", 3: "🌸🌸🌸", 4: "🌸🌸🌸🌸", 5: "🌸🌸🌸🌸🌸"}
 
+    # 各等级对应参考浓度（粒/m³），基于 NAB/WHO 花粉监测标准及中国研究数据
+    grains_ref_map = {
+        1: "< 50 粒/m³",
+        2: "50 ~ 200 粒/m³",
+        3: "200 ~ 500 粒/m³",
+        4: "500 ~ 1000 粒/m³",
+        5: "> 1000 粒/m³",
+    }
+
     level_str = level_map.get(level_num, f"{level_text}（{level_num}级）")
     stars = stars_map.get(level_num, "🌸")
+    grains_ref = grains_ref_map.get(level_num, "未知")
 
     # 花粉种类（若未从页面解析出，则按月推算）
     now = datetime.now()
@@ -279,6 +289,7 @@ def _build_pollen_result(level_num: int, level_text: str, pollen_type_raw, sourc
         'level': f"{stars} {level_str}",
         'level_num': level_num,
         'type': pollen_type,
+        'grains_ref': grains_ref,
         'risk_tip': risk_tip,
         'outing_tip': outing_tip,
         'source': source,
@@ -375,6 +386,7 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict
 | 项目 | 详情 |
 |------|------|
 | 🌼 花粉等级 | **{pollen['level']}** |
+| 🔬 参考浓度 | {pollen.get('grains_ref', '--')} |
 | 🌿 主要花粉 | {pollen['type']} |
 | ⚠️ 风险提示 | {pollen['risk_tip']} |
 | 🕐 出行建议 | {pollen.get('outing_tip', '敏感人群注意防护')} |
