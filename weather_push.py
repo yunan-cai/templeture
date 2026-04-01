@@ -335,7 +335,7 @@ def _pollen_season_fallback() -> dict:
 
 
 def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict) -> str:
-    """构建推送消息内容"""
+    """构建推送消息内容 - 表格风格（与push.py一致）"""
     now = datetime.now()
     date_str = f"{now.year}年{now.month}月{now.day}日"
     weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
@@ -345,9 +345,6 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict
     tomorrow = now + timedelta(days=1)
     tomorrow_date = f"{tomorrow.month}月{tomorrow.day}日"
 
-    day_after = now + timedelta(days=2)
-    day_after_date = f"{day_after.month}月{day_after.day}日"
-
     # 生成温馨提示
     tips = []
     try:
@@ -356,88 +353,101 @@ def build_weather_message(weather: dict, forecast: dict, aqi: dict, pollen: dict
         temp_diff = 0
 
     if temp_diff > 10:
-        tips.append(f"• 🌡 早晚温差大（{temp_diff}℃），注意增减衣物")
+        tips.append(f"- 🧥 早晚温差大（{temp_diff}℃），注意增减衣物")
     if '雨' in weather['condition']:
-        tips.append("• 🌧 今日有雨，出行请备雨具")
+        tips.append("- 🌧 今日有雨，出行请备雨具")
     if '晴' in weather['condition'] or '多云' in weather['condition']:
-        tips.append("• ☀️ 天气不错，适合户外活动")
-    if aqi['level'] in ['轻度污染', '中度污染', '重度污染', '严重污染']:
-        tips.append(f"• 😷 空气质量{aqi['level']}，建议减少户外活动或佩戴口罩")
-    if '高' in pollen['level'] or '很高' in pollen['level']:
-        tips.append(f"• 🌸 花粉浓度{pollen['level']}，{pollen['risk_tip']}")
-    elif '中' in pollen['level']:
-        tips.append(f"• 🌸 花粉浓度{pollen['level']}，{pollen['risk_tip']}")
+        tips.append("- ☀️ 天气不错，适合户外活动")
+    if aqi.get('level') in ['轻度污染', '中度污染', '重度污染', '严重污染']:
+        tips.append(f"- 😷 空气质量{aqi.get('level')}，建议减少户外活动或佩戴口罩")
+    if '高' in pollen.get('level', '') or '很高' in pollen.get('level', ''):
+        tips.append(f"- 🌸 花粉浓度{pollen.get('level')}，敏感人群注意防护")
 
-    tips_text = "\n".join(tips)
+    tips_text = "\n".join(tips) if tips else "- 暂无温馨提示"
 
-    # 天气条件对应的 emoji
-    condition = weather['condition']
-    if '晴' in condition:
-        weather_emoji = '☀️'
-    elif '多云' in condition or '阴' in condition:
-        weather_emoji = '☁️'
-    elif '雨' in condition:
-        weather_emoji = '🌧️'
-    elif '雪' in condition:
-        weather_emoji = '❄️'
-    elif '雾' in condition or '霾' in condition:
-        weather_emoji = '🌫️'
-    else:
-        weather_emoji = '🌤️'
-
-    # AQI 对应 emoji
+    # 获取AQI数据
+    aqi_value = aqi.get('aqi', '--')
     aqi_level = aqi.get('level', '--')
-    if '优' in aqi_level:
-        aqi_emoji = '🟢'
-    elif '良' in aqi_level:
-        aqi_emoji = '🟡'
-    elif '轻度' in aqi_level:
-        aqi_emoji = '🟠'
-    elif '中度' in aqi_level or '重度' in aqi_level or '严重' in aqi_level:
-        aqi_emoji = '🔴'
-    else:
-        aqi_emoji = '⚪'
+    pm25_value = aqi.get('pm25', '--')
 
-    # 花粉对应 emoji
+    # 获取花粉数据
     pollen_level = pollen.get('level', '--')
-    if '很低' in pollen_level or '低' in pollen_level:
-        pollen_emoji = '🟢'
-    elif '中' in pollen_level:
-        pollen_emoji = '🟡'
-    elif '高' in pollen_level or '很高' in pollen_level:
-        pollen_emoji = '🔴'
-    else:
-        pollen_emoji = '⚪'
+    pollen_type = pollen.get('type', '--')
+    pollen_tip = pollen.get('risk_tip', '')
+    pollen_advice = ""
+    if '高' in pollen_level or '很高' in pollen_level:
+        pollen_advice = f"> ⚠️ 国家卫健委提示：陕西大部花粉浓度处于**{pollen_level}**，过敏人群请减少上午10点至下午5点的户外活动，回家后及时清洗面部鼻腔。"
 
-    message = f"""# {weather_emoji} 西安天气 · {date_str}（{weekday}）
+    # 日出日落
+    sunrise = weather.get('sunrise', '--')
+    sunset = weather.get('sunset', '--')
+    daylight = "约12小时（估算）"  # GitHub环境无法精确计算
 
-## 今日天气
+    # 明日预报
+    tomorrow_condition = forecast.get('tomorrow', '--').split(',')[0] if forecast.get('tomorrow') else '--'
+    tomorrow_temp = forecast.get('tomorrow', '--').split(',')[1].strip() if ',' in forecast.get('tomorrow', '') else '--'
 
-**{condition}**　{weather['temp_low']}℃ ~ {weather['temp_high']}℃
-💨 {weather['wind']}
-🌅 日出 {weather.get('sunrise', '--')}　🌇 日落 {weather.get('sunset', '--')}
-
-## 空气质量
-
-{aqi_emoji} AQI **{aqi['aqi']}**（{aqi_level}）　PM2.5：{aqi['pm25']} μg/m³
-
-## 花粉
-
-{pollen_emoji} **{pollen_level}**　{pollen.get('grains_ref', '')}
-🌿 主要花粉：{pollen['type']}
-💊 {pollen['risk_tip']}
-🕐 {pollen.get('outing_tip', '敏感人群注意防护')}
-
-## 未来两天
-
-📅 明天（{tomorrow_date}）：{forecast['tomorrow']}
-📅 后天（{day_after_date}）：{forecast['day_after']}
+    message = f"""## 🌤 西安天气早报 · {date_str}（{weekday}）
 
 ---
+
+### 📍 今日天气
+
+| 项目 | 详情 |
+|------|------|
+| 🌥 天气状况 | {weather.get('condition', '--')} |
+| 🌡 气温 | {weather.get('temp_low', '--')}℃ ~ {weather.get('temp_high', '--')}℃ |
+| 💨 风力风向 | {weather.get('wind', '--')} |
+| 💧 湿度 | {weather.get('humidity', '--')} |
+
+---
+
+### 🌫 空气质量
+
+| 指标 | 数值 |
+|------|------|
+| AQI 指数 | **{aqi_value}**（{aqi_level}） |
+| PM2.5 浓度 | {pm25_value} μg/m³ |
+| PM10 浓度 | -- |
+
+---
+
+### 🌸 花粉浓度
+
+| 项目 | 详情 |
+|------|------|
+| 🌼 花粉等级 | **{pollen_level}** |
+| 🌿 主要花粉 | {pollen_type} |
+| 📊 风险提示 | {pollen_tip} |
+
+{pollen_advice}
+
+---
+
+### 🌅 日出 & 日落
+
+- 🌄 日出时间：**{sunrise}**
+- 🌇 日落时间：**{sunset}**
+- ☀️ 日照时长：约 {daylight}
+
+---
+
+### 📅 明日预报（{tomorrow_date}）
+
+| 项目 | 详情 |
+|------|------|
+| 🌥 天气状况 | {tomorrow_condition} |
+| 🌡 气温 | {tomorrow_temp} |
+
+---
+
+### 💡 今日温馨提示
+
 {tips_text}
 
 ---
-*{now.strftime('%H:%M')} · SoJSON / WAQI / 中国天气网*
+
+*数据来源：中国天气网 & PM25.im & 国家卫健委花粉预报 | 推送时间：{now.strftime('%H:%M')}*
 """
     return message
 
